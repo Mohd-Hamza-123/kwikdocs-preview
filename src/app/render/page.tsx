@@ -2,7 +2,7 @@
 import React, { useEffect, useRef } from 'react'
 import { useSearchParams } from 'next/navigation'
 
-const page = () => {
+const Page = () => {
 
     const iframeRef = useRef<HTMLIFrameElement>(null)
     const params = useSearchParams()
@@ -47,4 +47,4 @@ const page = () => {
     )
 }
 
-export default page
+export default Page
