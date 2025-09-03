@@ -7,25 +7,7 @@ export default function RenderWeb() {
   const params = useSearchParams();
 
   useEffect(() => {
-    const html = params.get("html") || "";
-    const css = params.get("css") || "";
-    const js = params.get("js") || "";
-
-    const finalHtml = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <meta charset="UTF-8" />
-          <meta http-equiv="Content-Security-Policy"
-                content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src * data:; connect-src *">
-          <style>${css}</style>
-        </head>
-        <body>
-          ${html}
-          <script>${js}</script>
-        </body>
-      </html>
-    `;
+    const finalHtml = params.get("finalHtml") || "";
 
     if (iframeRef.current) {
       iframeRef.current.srcdoc = finalHtml;
