@@ -15,33 +15,14 @@ export default function RenderWeb() {
     const consoleBridge = `
       <script>
         (function(){
-          function formatArg(a) {
-            try {
-              if (typeof a === "object") {
-                return JSON.stringify(a, null, 2); // pretty JSON
-              }
-              return String(a);
-            } catch(e) {
-              return String(a);
-            }
-          }
-
           function send(type, args) {
             try {
-              let payload = args.map(formatArg).join(" ");
-
-              // truncate very large payloads
-              const MAX_LEN = 8000;
-              if (payload.length > MAX_LEN) {
-                payload = payload.slice(0, MAX_LEN) + "\\n... (truncated)";
-              }
-
+              // send raw args instead of stringifying
               window.parent.postMessage({
                 __from: "srcdoc-bridge",
                 type: "iframe-console",
                 logType: type,
-                value: payload,
-                raw: args // keep raw values if parent wants to render JSON tree
+                args: args
               }, "*");
             } catch(e) {}
           }
@@ -51,7 +32,6 @@ export default function RenderWeb() {
             const original = console[m];
             console[m] = function(...args) {
               send(m, args);
-              // still call original console so DevTools works
               try { original.apply(console, args); } catch(_) {}
             };
           });
@@ -67,10 +47,8 @@ export default function RenderWeb() {
           window.addEventListener("unhandledrejection", function(e) {
             try {
               send("error", [
-                "Unhandled promise rejection: " +
-                (e && e.reason 
-                  ? (typeof e.reason === "object" ? JSON.stringify(e.reason, null, 2) : String(e.reason)) 
-                  : String(e))
+                "Unhandled promise rejection: " + 
+                (e && e.reason ? e.reason : "Unknown")
               ]);
             } catch(_) {}
           });
@@ -99,7 +77,7 @@ export default function RenderWeb() {
       try {
         if (window.top) {
           window.top.postMessage(
-            { type: "iframe-console", logType: data.logType, value: data.value, raw: data.raw },
+            { type: "iframe-console", logType: data.logType, args: data.args },
             "*"
           );
         }
