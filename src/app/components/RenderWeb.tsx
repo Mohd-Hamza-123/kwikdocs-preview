@@ -1,88 +1,63 @@
 "use client";
-import { useSearchParams } from "next/navigation";
 import { useEffect, useRef } from "react";
 
 export default function RenderWeb() {
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
-  const params = useSearchParams();
-
 
   useEffect(() => {
-    const finalHtml = params.get("finalHtml") || "";
-    if (!iframeRef.current) return
+    // register a single handler that logs everything (good for debugging)
+    function onMessage(ev: MessageEvent) {
+      // DEBUG: this prints in the preview page's console (open DevTools for this page)
+      console.log("child got message:", ev);
 
-    // const consoleBridge = `
-    //   <script>
-    //     (function(){
-    //       function send(type, args) {
-    //         try {
-    //           // 🚀 send raw args instead of stringified JSON
-    //           window.parent.postMessage({
-    //             __from: 'srcdoc-bridge',
-    //             type: 'iframe-console',
-    //             logType: type,
-    //             value: args
-    //           }, '*');
-    //         } catch(e) {}
-    //       }
-
-    //       const methods = ['log','error','warn','info','debug','clear'];
-    //       methods.forEach((m) => {
-    //         const original = console[m];
-    //         console[m] = function(...args) {
-    //           send(m, args);
-    //           try { original.apply(console, args); } catch(_) {}
-    //         };
-    //       });
-
-    //       window.addEventListener('error', function(e) {
-    //         send('error', [ e?.message ? e.message + ' at ' + (e.lineno||0) + ':' + (e.colno||0) : String(e) ]);
-    //       });
-
-    //       window.addEventListener('unhandledrejection', function(e) {
-    //         send('error', ['Unhandled promise rejection:', e?.reason || 'Unknown']);
-    //       });
-    //     })();
-    //   </script>
-    // `;
-
-    // let patchedHtml = finalHtml;
-    // if (/<head\b[^>]*>/i.test(finalHtml)) {
-    //   // Case 1: HTML already has a <head> tag
-    //   patchedHtml = finalHtml.replace(/<head\b[^>]*>/i, (match) => match + consoleBridge);
-    // } else if (/<html\b[^>]*>/i.test(finalHtml)) {
-    //   patchedHtml = finalHtml.replace(/<html\b[^>]*>/i, (match) => match + "<head>" + consoleBridge + "</head>");
-    // } else {
-    //   patchedHtml = consoleBridge + finalHtml;
-    // }
-
-    // iframeRef.current.srcdoc = patchedHtml;
-
-    iframeRef.current.srcdoc = finalHtml;
-  }, [params]);
-
-  useEffect(() => {
-    const forwardHandler = (ev: MessageEvent) => {
       const data = ev.data;
-      if (!data || data.__from !== "srcdoc-bridge") return;
+      if (!data || typeof data !== "object") return;
 
-      try {
-        if (window.top) {
-          window.top.postMessage(
+      // handle parent updates
+      if (data.type === "parent-message" && typeof data.code === "string") {
+        console.log("child: received parent-message with HTML length:", data.code.length);
+
+        // apply inside inner iframe
+        if (iframeRef.current) {
+          try {
+            iframeRef.current.srcdoc = data.code;
+          } catch (err) {
+            // fallback: replace whole document (only if you control this page)
+            console.error("failed to set srcdoc, writing document instead", err);
+            document.open();
+            document.write(data.code);
+            document.close();
+          }
+        } else {
+          document.open();
+          document.write(data.code);
+          document.close();
+        }
+
+        // optional: ack to parent
+        try {
+          (ev.source as Window)?.postMessage({ type: "child-ack", status: "ok" }, ev.origin || "*");
+        } catch (_) {}
+        return;
+      }
+
+      // your existing forwarding logic for srcdoc console bridge
+      if (data.__from === "srcdoc-bridge") {
+        try {
+          window.top?.postMessage(
             {
               type: "iframe-console",
               logType: data.logType,
-              value: data.value, // already raw array/object
+              value: data.value,
             },
             "*"
           );
-        }
-      } catch (_) { }
-    };
+        } catch (_) {}
+      }
+    }
 
-    // sending messages to parent window
-    window.addEventListener("message", forwardHandler);
-    return () => window.removeEventListener("message", forwardHandler);
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
   }, []);
 
   return (
@@ -90,6 +65,74 @@ export default function RenderWeb() {
       ref={iframeRef}
       sandbox="allow-scripts allow-same-origin allow-forms allow-modals"
       className="w-full h-screen border"
+      title="preview-srcdoc"
     />
   );
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// "use client";
+// import { useSearchParams } from "next/navigation";
+// import { useEffect, useRef } from "react";
+
+// export default function RenderWeb() {
+//   const iframeRef = useRef<HTMLIFrameElement | null>(null);
+//   const params = useSearchParams();
+
+
+//   useEffect(() => {
+//     const finalHtml = params.get("finalHtml") || "";
+//     if (!iframeRef.current) return
+//     iframeRef.current.srcdoc = finalHtml;
+//   }, [params]);
+
+
+//   const forwardHandler = (ev: MessageEvent) => {
+//     console.log(ev)
+//     const data = ev.data;
+    
+//     if (!data || data.__from !== "srcdoc-bridge") return;
+
+//     try {
+//       if (window.top) {
+//         window.top.postMessage(
+//           {
+//             type: "iframe-console",
+//             logType: data.logType,
+//             value: data.value, // already raw array/object
+//           },
+//           "*"
+//         );
+//       }
+//     } catch (_) { }
+//   };
+
+//   useEffect(() => {
+//     // sending messages to parent window
+//     window.addEventListener("message", forwardHandler);
+//     return () => window.removeEventListener("message", forwardHandler);
+//   }, []);
+
+//   return (
+//     <iframe
+//       ref={iframeRef}
+//       sandbox="allow-scripts allow-same-origin allow-forms allow-modals"
+//       className="w-full h-screen border"
+//     />
+//   );
+// }
